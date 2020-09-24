@@ -51,6 +51,7 @@ pillar modules
     sql_base
     sqlcipher
     sqlite3
+    ssm
     stack
     svn_pillar
     varstack_pillar
