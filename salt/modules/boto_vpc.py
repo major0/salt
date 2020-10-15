@@ -132,10 +132,8 @@ import time
 import salt.utils.compat
 import salt.utils.versions
 from salt.exceptions import CommandExecutionError, SaltInvocationError
+from salt.utils.decorators import allow_one_of, require_one_of
 
-# from salt.utils import exactly_one
-# TODO: Uncomment this and s/_exactly_one/exactly_one/
-# See note in utils.boto
 PROVISIONING = "provisioning"
 PENDING_ACCEPTANCE = "pending-acceptance"
 ACTIVE = "active"
@@ -195,6 +193,7 @@ def __init__(opts):
         )
 
 
+@require_one_of("vpc_name", "vpc_id")
 def check_vpc(
     vpc_id=None, vpc_name=None, region=None, key=None, keyid=None, profile=None,
 ):
@@ -212,11 +211,6 @@ def check_vpc(
 
         salt myminion boto_vpc.check_vpc vpc_name=myvpc profile=awsprofile
     """
-
-    if not _exactly_one((vpc_name, vpc_id)):
-        raise SaltInvocationError(
-            "One (but not both) of vpc_id or vpc_name " "must be provided."
-        )
     if vpc_name:
         vpc_id = _get_id(
             vpc_name=vpc_name, region=region, key=key, keyid=keyid, profile=profile
@@ -296,6 +290,7 @@ def _create_resource(
         return {"created": False, "error": __utils__["boto.get_error"](e)}
 
 
+@require_one_of("name", "resource_id")
 def _delete_resource(
     resource,
     name=None,
@@ -309,12 +304,6 @@ def _delete_resource(
     """
     Delete a VPC resource. Returns True if successful, otherwise False.
     """
-
-    if not _exactly_one((name, resource_id)):
-        raise SaltInvocationError(
-            "One (but not both) of name or id must be " "provided."
-        )
-
     try:
         conn = _get_conn(region=region, key=key, keyid=keyid, profile=profile)
 
@@ -359,6 +348,7 @@ def _delete_resource(
         return {"deleted": False, "error": __utils__["boto.get_error"](e)}
 
 
+@require_one_of("name", "resource_id")
 def _get_resource(
     resource,
     name=None,
@@ -372,12 +362,6 @@ def _get_resource(
     Get a VPC resource based on resource type and name or id.
     Cache the id if name was provided.
     """
-
-    if not _exactly_one((name, resource_id)):
-        raise SaltInvocationError(
-            "One (but not both) of name or id must be " "provided."
-        )
-
     conn = _get_conn(region=region, key=key, keyid=keyid, profile=profile)
 
     f = "get_all_{}".format(resource)
@@ -626,7 +610,6 @@ def _get_id(
     """
     Given VPC properties, return the VPC id if a match is found.
     """
-
     if not any((vpc_name, tags, cidr)):
         raise SaltInvocationError(
             "At least one of the following must be provided: vpc_name, cidr or tags."
@@ -810,9 +793,9 @@ def create(
         return {"created": False, "error": __utils__["boto.get_error"](e)}
 
 
+@require_one_of("vpc_name", "vpc_id")
 def delete(
     vpc_id=None,
-    name=None,
     vpc_name=None,
     tags=None,
     region=None,
@@ -835,16 +818,6 @@ def delete(
 
     """
 
-    if name:
-        log.warning(
-            "boto_vpc.delete: name parameter is deprecated " "use vpc_name instead."
-        )
-        vpc_name = name
-
-    if not _exactly_one((vpc_name, vpc_id)):
-        raise SaltInvocationError(
-            "One (but not both) of vpc_name or vpc_id must be " "provided."
-        )
     try:
         conn = _get_conn(region=region, key=key, keyid=keyid, profile=profile)
         if not vpc_id:
@@ -2492,6 +2465,8 @@ def associate_network_acl_to_subnet(
         return {"associated": False, "error": __utils__["boto.get_error"](e)}
 
 
+@require_one_of("subnet_name", "subnet_id")
+@allow_one_of("vpc_name", "vpc_id")
 def disassociate_network_acl(
     subnet_id=None,
     vpc_id=None,
@@ -2512,14 +2487,6 @@ def disassociate_network_acl(
         salt myminion boto_vpc.disassociate_network_acl 'subnet-6a1fe403'
 
     """
-
-    if not _exactly_one((subnet_name, subnet_id)):
-        raise SaltInvocationError(
-            "One (but not both) of subnet_id or subnet_name " "must be provided."
-        )
-
-    if all((vpc_name, vpc_id)):
-        raise SaltInvocationError("Only one of vpc_id or vpc_name " "may be provided.")
     try:
         if subnet_name:
             subnet_id = _get_resource_id(
@@ -2548,6 +2515,7 @@ def disassociate_network_acl(
         return {"disassociated": False, "error": __utils__["boto.get_error"](e)}
 
 
+@require_one_of("network_acl_name", "network_acl_id")
 def _create_network_acl_entry(
     network_acl_id=None,
     rule_number=None,
@@ -2570,12 +2538,6 @@ def _create_network_acl_entry(
         rkey = "replaced"
     else:
         rkey = "created"
-
-    if not _exactly_one((network_acl_name, network_acl_id)):
-        raise SaltInvocationError(
-            "One (but not both) of network_acl_id or "
-            "network_acl_name must be provided."
-        )
 
     for v in ("rule_number", "protocol", "rule_action", "cidr_block"):
         if locals()[v] is None:
@@ -2702,6 +2664,7 @@ def replace_network_acl_entry(
     return _create_network_acl_entry(replace=True, **kwargs)
 
 
+@require_one_of("network_acl_name", "network_acl_id")
 def delete_network_acl_entry(
     network_acl_id=None,
     rule_number=None,
@@ -2722,11 +2685,6 @@ def delete_network_acl_entry(
         salt myminion boto_vpc.delete_network_acl_entry 'acl-5fb85d36' '32767'
 
     """
-    if not _exactly_one((network_acl_name, network_acl_id)):
-        raise SaltInvocationError(
-            "One (but not both) of network_acl_id or "
-            "network_acl_name must be provided."
-        )
 
     for v in ("rule_number", "egress"):
         if locals()[v] is None:
@@ -3099,6 +3057,18 @@ def replace_route_table_association(
         return {"replaced": False, "error": __utils__["boto.get_error"](e)}
 
 
+@require_one_of("route_table_name", "route_table_id")
+@require_one_of(
+    "gateway_id",
+    "internet_gateway_name",
+    "instance_id",
+    "interface_id",
+    "vpc_peering_connection_id",
+    "nat_gateway_id",
+    "nat_gateway_subnet_id",
+    "nat_gateway_subnet_name",
+    "vpc_peering_connection_name",
+)
 def create_route(
     route_table_id=None,
     destination_cidr_block=None,
@@ -3129,31 +3099,6 @@ def create_route(
         salt myminion boto_vpc.create_route 'rtb-1f382e7d' '10.0.0.0/16' gateway_id='vgw-a1b2c3'
 
     """
-
-    if not _exactly_one((route_table_name, route_table_id)):
-        raise SaltInvocationError(
-            "One (but not both) of route_table_id or route_table_name "
-            "must be provided."
-        )
-
-    if not _exactly_one(
-        (
-            gateway_id,
-            internet_gateway_name,
-            instance_id,
-            interface_id,
-            vpc_peering_connection_id,
-            nat_gateway_id,
-            nat_gateway_subnet_id,
-            nat_gateway_subnet_name,
-            vpc_peering_connection_name,
-        )
-    ):
-        raise SaltInvocationError(
-            "Only one of gateway_id, internet_gateway_name, instance_id, "
-            "interface_id, vpc_peering_connection_id, nat_gateway_id, "
-            "nat_gateway_subnet_id, nat_gateway_subnet_name or vpc_peering_connection_name may be provided."
-        )
 
     if destination_cidr_block is None:
         raise SaltInvocationError("destination_cidr_block is required.")
@@ -3284,6 +3229,7 @@ def create_route(
         return {"created": False, "error": __utils__["boto.get_error"](e)}
 
 
+@require_one_of("route_table_name", "route_table_id")
 def delete_route(
     route_table_id=None,
     destination_cidr_block=None,
@@ -3303,13 +3249,6 @@ def delete_route(
         salt myminion boto_vpc.delete_route 'rtb-1f382e7d' '10.0.0.0/16'
 
     """
-
-    if not _exactly_one((route_table_name, route_table_id)):
-        raise SaltInvocationError(
-            "One (but not both) of route_table_id or route_table_name "
-            "must be provided."
-        )
-
     if destination_cidr_block is None:
         raise SaltInvocationError("destination_cidr_block is required.")
 
@@ -3346,6 +3285,7 @@ def delete_route(
     )
 
 
+@require_one_of("route_table_name", "route_table_id")
 def replace_route(
     route_table_id=None,
     destination_cidr_block=None,
@@ -3369,13 +3309,6 @@ def replace_route(
         salt myminion boto_vpc.replace_route 'rtb-1f382e7d' '10.0.0.0/16' gateway_id='vgw-a1b2c3'
 
     """
-
-    if not _exactly_one((route_table_name, route_table_id)):
-        raise SaltInvocationError(
-            "One (but not both) of route_table_id or route_table_name "
-            "must be provided."
-        )
-
     if destination_cidr_block is None:
         raise SaltInvocationError("destination_cidr_block is required.")
 
@@ -3634,6 +3567,8 @@ def _get_subnet_explicit_route_table(
     return None
 
 
+@require_one_of("requester_vpc_id", "requester_vpc_name")
+@require_one_of("peer_vpc_id", "peer_vpc_name")
 def request_vpc_peering_connection(
     requester_vpc_id=None,
     requester_vpc_name=None,
@@ -3708,15 +3643,6 @@ def request_vpc_peering_connection(
         raise SaltInvocationError(
             "A VPC peering connection with this name already "
             "exists! Please specify a different name."
-        )
-
-    if not _exactly_one((requester_vpc_id, requester_vpc_name)):
-        raise SaltInvocationError(
-            "Exactly one of requester_vpc_id or " "requester_vpc_name is required"
-        )
-    if not _exactly_one((peer_vpc_id, peer_vpc_name)):
-        raise SaltInvocationError(
-            "Exactly one of peer_vpc_id or " "peer_vpc_name is required."
         )
 
     if requester_vpc_name:
@@ -3828,6 +3754,7 @@ def describe_vpc_peering_connection(
     return {"VPC-Peerings": _get_peering_connection_ids(name, conn)}
 
 
+@require_one_of("conn_id", "name")
 def accept_vpc_peering_connection(  # pylint: disable=too-many-arguments
     conn_id="", name="", region=None, key=None, keyid=None, profile=None, dry_run=False
 ):
@@ -3859,13 +3786,6 @@ def accept_vpc_peering_connection(  # pylint: disable=too-many-arguments
         salt myminion boto_vpc.accept_vpc_peering_connection conn_id=pcx-8a8939e3
 
     """
-    if not _exactly_one((conn_id, name)):
-        raise SaltInvocationError(
-            "One (but not both) of "
-            "vpc_peering_connection_id or name "
-            "must be provided."
-        )
-
     conn = _get_conn3(region=region, key=key, keyid=keyid, profile=profile)
 
     if name:
@@ -3912,6 +3832,7 @@ def _vpc_peering_conn_id_for_name(name, conn):
     return ids[0]
 
 
+@require_one_of("conn_id", "conn_name")
 def delete_vpc_peering_connection(
     conn_id=None,
     conn_name=None,
@@ -3960,11 +3881,6 @@ def delete_vpc_peering_connection(
         salt myminion boto_vpc.delete_vpc_peering_connection conn_id=pcx-8a8939e3
 
     """
-    if not _exactly_one((conn_id, conn_name)):
-        raise SaltInvocationError(
-            "Exactly one of conn_id or " "conn_name must be provided."
-        )
-
     conn = _get_conn3(region=region, key=key, keyid=keyid, profile=profile)
     if conn_name:
         conn_id = _vpc_peering_conn_id_for_name(conn_name, conn)
@@ -3985,6 +3901,7 @@ def delete_vpc_peering_connection(
         return {"error": e}
 
 
+@require_one_of("conn_id", "conn_name")
 def is_peering_connection_pending(
     conn_id=None, conn_name=None, region=None, key=None, keyid=None, profile=None
 ):
@@ -4023,11 +3940,6 @@ def is_peering_connection_pending(
         salt myminion boto_vpc.is_peering_connection_pending conn_id=pcx-8a8939e3
 
     """
-    if not _exactly_one((conn_id, conn_name)):
-        raise SaltInvocationError(
-            "Exactly one of conn_id or conn_name must be provided."
-        )
-
     conn = _get_conn3(region=region, key=key, keyid=keyid, profile=profile)
 
     if conn_id:
@@ -4060,6 +3972,8 @@ def is_peering_connection_pending(
     return status == PENDING_ACCEPTANCE
 
 
+@require_one_of("conn_id", "conn_name")
+@require_one_of("vpc_id", "vpc_name")
 def peering_connection_pending_from_vpc(
     conn_id=None,
     conn_name=None,
@@ -4107,13 +4021,6 @@ def peering_connection_pending_from_vpc(
         salt myminion boto_vpc.is_peering_connection_pending name=salt-vpc
 
     """
-    if not _exactly_one((conn_id, conn_name)):
-        raise SaltInvocationError(
-            "Exactly one of conn_id or conn_name must be provided."
-        )
-
-    if not _exactly_one((vpc_id, vpc_name)):
-        raise SaltInvocationError("Exactly one of vpc_id or vpc_name must be provided.")
 
     if vpc_name:
         vpc_id = check_vpc(

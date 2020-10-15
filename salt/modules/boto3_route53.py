@@ -56,6 +56,7 @@ import salt.utils.compat
 import salt.utils.versions
 from salt.exceptions import CommandExecutionError, SaltInvocationError
 from salt.ext.six.moves import range
+from salt.utils.decorators import require_one_of
 
 log = logging.getLogger(__name__)  # pylint: disable=W1699
 
@@ -127,6 +128,7 @@ def _wait_for_sync(change, conn, tries=10, sleep=20):
     return False
 
 
+@require_one_of("Id", "Name")
 def find_hosted_zone(
     Id=None,
     Name=None,
@@ -170,8 +172,6 @@ def find_hosted_zone(
         salt myminion boto3_route53.find_hosted_zone Name=salt.org. \
                 profile='{"region": "us-east-1", "keyid": "A12345678AB", "key": "xblahblahblah"}'
     """
-    if not _exactly_one((Id, Name)):
-        raise SaltInvocationError("Exactly one of either Id or Name is required.")
     if PrivateZone is not None and not isinstance(PrivateZone, bool):
         raise SaltInvocationError(
             "If set, PrivateZone must be a bool (e.g. True / False)."
@@ -303,6 +303,7 @@ def list_hosted_zones(
     return _collect_results(conn.list_hosted_zones, "HostedZones", args)
 
 
+@require_one_of("VPCName", "VPCId")
 def create_hosted_zone(
     Name,
     VPCId=None,
@@ -402,10 +403,6 @@ def create_hosted_zone(
     }
     args.update({"DelegationSetId": DelegationSetId}) if DelegationSetId else None
     if PrivateZone:
-        if not _exactly_one((VPCName, VPCId)):
-            raise SaltInvocationError(
-                "Either VPCName or VPCId is required when creating a " "private zone."
-            )
         vpcs = __salt__["boto_vpc.describe_vpcs"](
             vpc_id=VPCId,
             name=VPCName,
@@ -459,6 +456,7 @@ def create_hosted_zone(
     return []
 
 
+@require_one_of("Id", "Name")
 def update_hosted_zone_comment(
     Id=None,
     Name=None,
@@ -489,8 +487,6 @@ def update_hosted_zone_comment(
         salt myminion boto3_route53.update_hosted_zone_comment Name=example.org. \
                 Comment="This is an example comment for an example zone"
     """
-    if not _exactly_one((Id, Name)):
-        raise SaltInvocationError("Exactly one of either Id or Name is required.")
     conn = _get_conn(region=region, key=key, keyid=keyid, profile=profile)
     if Name:
         args = {
@@ -522,6 +518,8 @@ def update_hosted_zone_comment(
     return []
 
 
+@require_one_of("HostedZoneId", "Name")
+@require_one_of("VPCId", "VPCName")
 def associate_vpc_with_hosted_zone(
     HostedZoneId=None,
     Name=None,
@@ -580,12 +578,6 @@ def associate_vpc_with_hosted_zone(
                     VPCRegion=us-east-1 Comment="Whoo-hoo!  I added another VPC."
 
     """
-    if not _exactly_one((HostedZoneId, Name)):
-        raise SaltInvocationError(
-            "Exactly one of either HostedZoneId or Name is required."
-        )
-    if not _exactly_one((VPCId, VPCName)):
-        raise SaltInvocationError("Exactly one of either VPCId or VPCName is required.")
     if Name:
         # {'PrivateZone': True} because you can only associate VPCs with private hosted zones.
         args = {
@@ -653,6 +645,8 @@ def associate_vpc_with_hosted_zone(
     return False
 
 
+@require_one_of("HostedZoneId", "Name")
+@require_one_of("VPCId", "VPCName")
 def disassociate_vpc_from_hosted_zone(
     HostedZoneId=None,
     Name=None,
@@ -704,12 +698,6 @@ def disassociate_vpc_from_hosted_zone(
                     VPCRegion=us-east-1 Comment="Whoops!  Don't wanna talk to this-here zone no more."
 
     """
-    if not _exactly_one((HostedZoneId, Name)):
-        raise SaltInvocationError(
-            "Exactly one of either HostedZoneId or Name is required."
-        )
-    if not _exactly_one((VPCId, VPCName)):
-        raise SaltInvocationError("Exactly one of either VPCId or VPCName is required.")
     if Name:
         # {'PrivateZone': True} because you can only associate VPCs with private hosted zones.
         args = {
@@ -950,6 +938,7 @@ def _hexReplace(x):
     return "\\" + str(oct(c))[1:]
 
 
+@require_one_of("HostedZoneId", "Name")
 def get_resource_records(
     HostedZoneId=None,
     Name=None,
@@ -980,10 +969,6 @@ def get_resource_records(
 
         salt myminion boto3_route53.get_records test.example.org example.org A
     """
-    if not _exactly_one((HostedZoneId, Name)):
-        raise SaltInvocationError(
-            "Exactly one of either HostedZoneId or Name must " "be provided."
-        )
     if Name:
         args = {
             "Name": Name,
@@ -1062,6 +1047,7 @@ def get_resource_records(
             raise
 
 
+@require_one_of("HostedZoneId", "Name")
 def change_resource_record_sets(
     HostedZoneId=None,
     Name=None,
@@ -1138,10 +1124,6 @@ def change_resource_record_sets(
                 keyid=A1234567890ABCDEF123 key=xblahblahblah \
                 ChangeBatch="{'Changes': [{'Action': 'UPSERT', 'ResourceRecordSet': $foo}]}"
     """
-    if not _exactly_one((HostedZoneId, Name)):
-        raise SaltInvocationError(
-            "Exactly one of either HostZoneId or Name must be provided."
-        )
     if Name:
         args = {
             "Name": Name,

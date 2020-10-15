@@ -52,6 +52,7 @@ import salt.utils.compat
 import salt.utils.odict as odict
 import salt.utils.versions
 from salt.exceptions import SaltInvocationError
+from salt.utils.decorators import require_one_of
 
 log = logging.getLogger(__name__)
 
@@ -954,6 +955,7 @@ def _wait_for_sync(status, conn, wait=True):
     return False
 
 
+@require_one_of("vpc_name", "vpc_id")
 def create_hosted_zone(
     domain_name,
     caller_ref=None,
@@ -1046,10 +1048,6 @@ def create_hosted_zone(
     }
 
     if private_zone:
-        if not _exactly_one((vpc_name, vpc_id)):
-            raise SaltInvocationError(
-                "Either vpc_name or vpc_id is required " "when creating a private zone."
-            )
         vpcs = __salt__["boto_vpc.describe_vpcs"](
             vpc_id=vpc_id,
             name=vpc_name,

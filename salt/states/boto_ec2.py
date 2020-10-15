@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Manage EC2
 
@@ -51,19 +50,13 @@ The below code deletes a key pair:
         - key: askdjghsdfjkghWupUjasdflkdfklgjsdfjajkghs
 """
 
-# Import Python Libs
-from __future__ import absolute_import, print_function, unicode_literals
 
 import logging
 from time import sleep, time
 
-import salt.utils.data
 import salt.utils.dictupdate as dictupdate
 from salt.exceptions import CommandExecutionError, SaltInvocationError
-
-# Import salt libs
-from salt.ext import six
-from salt.ext.six.moves import range
+from salt.utils.decorators import require_one_of
 
 log = logging.getLogger(__name__)
 
@@ -95,14 +88,14 @@ def key_present(
     if upload_public is not None and "salt://" in upload_public:
         try:
             upload_public = __salt__["cp.get_file_str"](upload_public)
-        except IOError as e:
+        except OSError as e:
             log.debug(e)
-            ret["comment"] = "File {0} not found.".format(upload_public)
+            ret["comment"] = "File {} not found.".format(upload_public)
             ret["result"] = False
             return ret
     if not exists:
         if __opts__["test"]:
-            ret["comment"] = "The key {0} is set to be created.".format(name)
+            ret["comment"] = "The key {} is set to be created.".format(name)
             ret["result"] = None
             return ret
         if save_private and not upload_public:
@@ -111,29 +104,29 @@ def key_present(
             )
             if created:
                 ret["result"] = True
-                ret["comment"] = "The key {0} is created.".format(name)
+                ret["comment"] = "The key {} is created.".format(name)
                 ret["changes"]["new"] = created
             else:
                 ret["result"] = False
-                ret["comment"] = "Could not create key {0} ".format(name)
+                ret["comment"] = "Could not create key {} ".format(name)
         elif not save_private and upload_public:
             imported = __salt__["boto_ec2.import_key"](
                 name, upload_public, region, key, keyid, profile
             )
             if imported:
                 ret["result"] = True
-                ret["comment"] = "The key {0} is created.".format(name)
+                ret["comment"] = "The key {} is created.".format(name)
                 ret["changes"]["old"] = None
                 ret["changes"]["new"] = imported
             else:
                 ret["result"] = False
-                ret["comment"] = "Could not create key {0} ".format(name)
+                ret["comment"] = "Could not create key {} ".format(name)
         else:
             ret["result"] = False
             ret["comment"] = "You can either upload or download a private key "
     else:
         ret["result"] = True
-        ret["comment"] = "The key name {0} already exists".format(name)
+        ret["comment"] = "The key name {} already exists".format(name)
     return ret
 
 
@@ -145,24 +138,25 @@ def key_absent(name, region=None, key=None, keyid=None, profile=None):
     exists = __salt__["boto_ec2.get_key"](name, region, key, keyid, profile)
     if exists:
         if __opts__["test"]:
-            ret["comment"] = "The key {0} is set to be deleted.".format(name)
+            ret["comment"] = "The key {} is set to be deleted.".format(name)
             ret["result"] = None
             return ret
         deleted = __salt__["boto_ec2.delete_key"](name, region, key, keyid, profile)
         log.debug("exists is %s", deleted)
         if deleted:
             ret["result"] = True
-            ret["comment"] = "The key {0} is deleted.".format(name)
+            ret["comment"] = "The key {} is deleted.".format(name)
             ret["changes"]["old"] = name
         else:
             ret["result"] = False
-            ret["comment"] = "Could not delete key {0} ".format(name)
+            ret["comment"] = "Could not delete key {} ".format(name)
     else:
         ret["result"] = True
-        ret["comment"] = "The key name {0} does not exist".format(name)
+        ret["comment"] = "The key name {} does not exist".format(name)
     return ret
 
 
+@require_one_of("subnet_id", "subnet_name")
 def eni_present(
     name,
     subnet_id=None,
@@ -236,10 +230,6 @@ def eni_present(
         A dict with region, key and keyid, or a pillar key (string)
         that contains a dict with region, key and keyid.
     """
-    if not salt.utils.data.exactly_one((subnet_id, subnet_name)):
-        raise SaltInvocationError(
-            "One (but not both) of subnet_id or " "subnet_name must be provided."
-        )
     if not groups:
         raise SaltInvocationError("groups is a required argument.")
     if not isinstance(groups, list):
@@ -252,7 +242,7 @@ def eni_present(
     )
     if "error" in r:
         ret["result"] = False
-        ret["comment"] = "Error when attempting to find eni: {0}.".format(
+        ret["comment"] = "Error when attempting to find eni: {}.".format(
             r["error"]["message"]
         )
         return ret
@@ -286,12 +276,12 @@ def eni_present(
         )
         if "error" in result_create:
             ret["result"] = False
-            ret["comment"] = "Failed to create ENI: {0}".format(
+            ret["comment"] = "Failed to create ENI: {}".format(
                 result_create["error"]["message"]
             )
             return ret
         r["result"] = result_create["result"]
-        ret["comment"] = "Created ENI {0}".format(name)
+        ret["comment"] = "Created ENI {}".format(name)
         ret["changes"]["id"] = r["result"]["id"]
     else:
         _ret = _eni_attribute(
@@ -357,7 +347,7 @@ def eni_present(
                             profile=profile,
                         )
                         ret["result"] = False
-                        msg = "Failed to assocaite the allocated EIP address with the ENI.  The EIP {0}".format(
+                        msg = "Failed to assocaite the allocated EIP address with the ENI.  The EIP {}".format(
                             "was successfully released."
                             if _ret
                             else "was NOT RELEASED."
@@ -423,7 +413,7 @@ def _eni_attribute(metadata, attr, value, region, key, keyid, profile):
     if metadata[attr] == value:
         return ret
     if __opts__["test"]:
-        ret["comment"] = "ENI set to have {0} updated.".format(attr)
+        ret["comment"] = "ENI set to have {} updated.".format(attr)
         ret["result"] = None
         return ret
     result_update = __salt__["boto_ec2.modify_network_interface_attribute"](
@@ -440,7 +430,7 @@ def _eni_attribute(metadata, attr, value, region, key, keyid, profile):
         ret["result"] = False
         ret["comment"] = msg.format(attr, result_update["error"]["message"])
     else:
-        ret["comment"] = "Updated ENI {0}.".format(attr)
+        ret["comment"] = "Updated ENI {}.".format(attr)
         ret["changes"][attr] = {"old": metadata[attr], "new": value}
     return ret
 
@@ -519,7 +509,7 @@ def eni_absent(
     )
     if "error" in r:
         ret["result"] = False
-        ret["comment"] = "Error when attempting to find eni: {0}.".format(
+        ret["comment"] = "Error when attempting to find eni: {}.".format(
             r["error"]["message"]
         )
         return ret
@@ -548,7 +538,7 @@ def eni_absent(
             )
             if "error" in result_detach:
                 ret["result"] = False
-                ret["comment"] = "Failed to detach ENI: {0}".format(
+                ret["comment"] = "Failed to detach ENI: {}".format(
                     result_detach["error"]["message"]
                 )
                 return ret
@@ -558,11 +548,11 @@ def eni_absent(
         )
         if "error" in result_delete:
             ret["result"] = False
-            ret["comment"] = "Failed to delete ENI: {0}".format(
+            ret["comment"] = "Failed to delete ENI: {}".format(
                 result_delete["error"]["message"]
             )
             return ret
-        ret["comment"] = "Deleted ENI {0}".format(name)
+        ret["comment"] = "Deleted ENI {}".format(name)
         ret["changes"]["id"] = None
         if release_eip and "allocationId" in r["result"]:
             _ret = __salt__["boto_ec2.release_eip_address"](
@@ -637,6 +627,8 @@ def snapshot_created(
     return ret
 
 
+@require_one_of("image_id", "image_name")
+@require_one_of("public_ip", "allocation_id", "allocate_eip")
 def instance_present(
     name,
     instance_name=None,
@@ -845,18 +837,6 @@ def instance_present(
     running_states = ("pending", "rebooting", "running", "stopping", "stopped")
     changed_attrs = {}
 
-    if not salt.utils.data.exactly_one((image_id, image_name)):
-        raise SaltInvocationError(
-            "Exactly one of image_id OR " "image_name must be provided."
-        )
-    if (public_ip or allocation_id or allocate_eip) and not salt.utils.data.exactly_one(
-        (public_ip, allocation_id, allocate_eip)
-    ):
-        raise SaltInvocationError(
-            "At most one of public_ip, allocation_id OR "
-            "allocate_eip may be provided."
-        )
-
     if instance_id:
         exists = __salt__["boto_ec2.exists"](
             instance_id=instance_id,
@@ -889,7 +869,7 @@ def instance_present(
 
     if _create:
         if __opts__["test"]:
-            ret["comment"] = "The instance {0} is set to be created.".format(name)
+            ret["comment"] = "The instance {} is set to be created.".format(name)
             ret["result"] = None
             return ret
         if image_name:
@@ -944,7 +924,7 @@ def instance_present(
         )
         if not r or "instance_id" not in r:
             ret["result"] = False
-            ret["comment"] = "Failed to create instance {0}.".format(
+            ret["comment"] = "Failed to create instance {}.".format(
                 instance_name if instance_name else name
             )
             return ret
@@ -1000,7 +980,7 @@ def instance_present(
                 time.sleep(secs)
         if not r:
             ret["result"] = False
-            ret["comment"] = "Failed to lookup EIP {0}.".format(
+            ret["comment"] = "Failed to lookup EIP {}.".format(
                 public_ip or allocation_id
             )
             return ret
@@ -1009,15 +989,15 @@ def instance_present(
             if r[0]["instance_id"] != instance_id:
                 ret["result"] = False
                 ret["comment"] = (
-                    "EIP {0} is already associated with instance "
-                    "{1}.".format(
+                    "EIP {} is already associated with instance "
+                    "{}.".format(
                         public_ip if public_ip else allocation_id, r[0]["instance_id"]
                     )
                 )
                 return ret
         else:
             if __opts__["test"]:
-                ret["comment"] = "Instance {0} to be updated.".format(name)
+                ret["comment"] = "Instance {} to be updated.".format(name)
                 ret["result"] = None
                 return ret
             r = __salt__["boto_ec2.associate_eip_address"](
@@ -1035,13 +1015,13 @@ def instance_present(
                 ret["changes"]["new"]["public_ip"] = ip
             else:
                 ret["result"] = False
-                ret["comment"] = "Failed to attach EIP to instance {0}.".format(
+                ret["comment"] = "Failed to attach EIP to instance {}.".format(
                     instance_name if instance_name else name
                 )
                 return ret
 
     if attributes:
-        for k, v in six.iteritems(attributes):
+        for k, v in attributes.items():
             curr = __salt__["boto_ec2.get_attribute"](
                 k,
                 instance_id=instance_id,
@@ -1057,7 +1037,7 @@ def instance_present(
                 if __opts__["test"]:
                     changed_attrs[
                         k
-                    ] = "The instance attribute {0} is set to be changed from '{1}' to '{2}'.".format(
+                    ] = "The instance attribute {} is set to be changed from '{}' to '{}'.".format(
                         k, curr.get(k), v
                     )
                     continue
@@ -1075,7 +1055,7 @@ def instance_present(
                     ret["result"] = False
                     ret[
                         "comment"
-                    ] = "Failed to set attribute {0} to {1} on instance {2}.".format(
+                    ] = "Failed to set attribute {} to {} on instance {}.".format(
                         k, v, instance_name
                     )
                     return ret
@@ -1090,7 +1070,7 @@ def instance_present(
             ret["changes"]["new"] = changed_attrs
             ret["result"] = None
         else:
-            ret["comment"] = "Instance {0} is in the correct state".format(
+            ret["comment"] = "Instance {} is in the correct state".format(
                 instance_name if instance_name else name
             )
             ret["result"] = True
@@ -1111,8 +1091,8 @@ def instance_present(
         remove = list(
             current - desired
         )  # Boto explicitly requires a list here and can't cope with a set...
-        add = dict([(t, tags[t]) for t in desired - current])
-        replace = dict([(t, tags[t]) for t in tags if tags.get(t) != curr_tags.get(t)])
+        add = {t: tags[t] for t in desired - current}
+        replace = {t: tags[t] for t in tags if tags.get(t) != curr_tags.get(t)}
         # Tag keys are unique despite the bizarre semantics uses which make it LOOK like they could be duplicative.
         add.update(replace)
         if add or remove:
@@ -1125,7 +1105,7 @@ def instance_present(
                 )
                 ret["changes"]["old"]["tags"] = curr_tags
                 ret["changes"]["new"]["tags"] = tags
-                ret["comment"] += "  Tags would be updated on instance {0}.".format(
+                ret["comment"] += "  Tags would be updated on instance {}.".format(
                     instance_name if instance_name else name
                 )
             else:
@@ -1138,7 +1118,7 @@ def instance_present(
                         keyid=keyid,
                         profile=profile,
                     ):
-                        msg = "Error while deleting tags on instance {0}".format(
+                        msg = "Error while deleting tags on instance {}".format(
                             instance_name if instance_name else name
                         )
                         log.error(msg)
@@ -1154,7 +1134,7 @@ def instance_present(
                         keyid=keyid,
                         profile=profile,
                     ):
-                        msg = "Error while creating tags on instance {0}".format(
+                        msg = "Error while creating tags on instance {}".format(
                             instance_name if instance_name else name
                         )
                         log.error(msg)
@@ -1237,7 +1217,7 @@ def instance_absent(
             ret["result"] = None
             ret["comment"] = (
                 "Couldn't determine current status of instance "
-                "{0}.".format(instance_name or name)
+                "{}.".format(instance_name or name)
             )
             return ret
 
@@ -1252,7 +1232,7 @@ def instance_absent(
     )
     if not instances:
         ret["result"] = True
-        ret["comment"] = "Instance {0} is already gone.".format(instance_id)
+        ret["comment"] = "Instance {} is already gone.".format(instance_id)
         return ret
     instance = instances[0]
 
@@ -1267,13 +1247,13 @@ def instance_absent(
     )
     if no_can_do.get("disableApiTermination") is True:
         ret["result"] = False
-        ret["comment"] = "Termination of instance {0} via the API is disabled.".format(
+        ret["comment"] = "Termination of instance {} via the API is disabled.".format(
             instance_id
         )
         return ret
 
     if __opts__["test"]:
-        ret["comment"] = "The instance {0} is set to be deleted.".format(name)
+        ret["comment"] = "The instance {} is set to be deleted.".format(name)
         ret["result"] = None
         return ret
 
@@ -1287,7 +1267,7 @@ def instance_absent(
     )
     if not r:
         ret["result"] = False
-        ret["comment"] = "Failed to terminate instance {0}.".format(instance_id)
+        ret["comment"] = "Failed to terminate instance {}.".format(instance_id)
         return ret
 
     ret["changes"]["old"] = {"instance_id": instance_id}
@@ -1315,7 +1295,7 @@ def instance_absent(
                     ret["result"] = False
                     ret[
                         "comment"
-                    ] = "Can't determine AllocationId for address {0}.".format(ip)
+                    ] = "Can't determine AllocationId for address {}.".format(ip)
                     return ret
             else:
                 public_ip = instance.ip_address
@@ -1334,12 +1314,13 @@ def instance_absent(
                 ret["changes"]["old"]["public_ip"] = public_ip or r[0]["public_ip"]
             else:
                 ret["result"] = False
-                ret["comment"] = "Failed to release EIP {0}.".format(ip)
+                ret["comment"] = "Failed to release EIP {}.".format(ip)
                 return ret
 
     return ret
 
 
+@require_one_of("volume_name", "volume_id", "instance_name", "instance_id")
 def volume_absent(
     name,
     volume_name=None,
@@ -1398,13 +1379,6 @@ def volume_absent(
     filters = {}
     running_states = ("pending", "rebooting", "running", "stopping", "stopped")
 
-    if not salt.utils.data.exactly_one(
-        (volume_name, volume_id, instance_name, instance_id)
-    ):
-        raise SaltInvocationError(
-            "Exactly one of 'volume_name', 'volume_id', "
-            "'instance_name', or 'instance_id' must be provided."
-        )
     if (instance_name or instance_id) and not device:
         raise SaltInvocationError(
             "Parameter 'device' is required when either "
@@ -1425,7 +1399,7 @@ def volume_absent(
         )
         if not instance_id:
             ret["comment"] = (
-                "Instance with Name {0} not found.  Assuming "
+                "Instance with Name {} not found.  Assuming "
                 "associated volumes gone.".format(instance_name)
             )
             return ret
@@ -1441,7 +1415,7 @@ def volume_absent(
         ret["comment"] = "Volume matching criteria not found, assuming already absent"
         return ret
     if len(vols) > 1:
-        msg = "More than one volume matched criteria, can't continue in state {0}".format(
+        msg = "More than one volume matched criteria, can't continue in state {}".format(
             name
         )
         log.error(msg)
@@ -1452,14 +1426,14 @@ def volume_absent(
     log.info("Matched Volume ID %s", vol)
 
     if __opts__["test"]:
-        ret["comment"] = "The volume {0} is set to be deleted.".format(vol)
+        ret["comment"] = "The volume {} is set to be deleted.".format(vol)
         ret["result"] = None
         return ret
     if __salt__["boto_ec2.delete_volume"](volume_id=vol, force=True, **args):
-        ret["comment"] = "Volume {0} deleted.".format(vol)
+        ret["comment"] = "Volume {} deleted.".format(vol)
         ret["changes"] = {"old": {"volume_id": vol}, "new": {"volume_id": None}}
     else:
-        ret["comment"] = "Error deleting volume {0}.".format(vol)
+        ret["comment"] = "Error deleting volume {}.".format(vol)
         ret["result"] = False
     return ret
 
@@ -1558,6 +1532,8 @@ def volumes_tagged(
     return ret
 
 
+@require_one_of("volume_name", "volume_id")
+@require_one_of("instance_name", "instance_id")
 def volume_present(
     name,
     volume_name=None,
@@ -1651,14 +1627,6 @@ def volume_present(
     new_dict = {}
     running_states = ("running", "stopped")
 
-    if not salt.utils.data.exactly_one((volume_name, volume_id)):
-        raise SaltInvocationError(
-            "Exactly one of 'volume_name', 'volume_id', " " must be provided."
-        )
-    if not salt.utils.data.exactly_one((instance_name, instance_id)):
-        raise SaltInvocationError(
-            "Exactly one of 'instance_name', or 'instance_id'" " must be provided."
-        )
     if device is None:
         raise SaltInvocationError("Parameter 'device' is required.")
     args = {"region": region, "key": key, "keyid": keyid, "profile": profile}
@@ -1668,7 +1636,7 @@ def volume_present(
         )
         if not instance_id:
             raise SaltInvocationError(
-                "Instance with Name {0} not found.".format(instance_name)
+                "Instance with Name {} not found.".format(instance_name)
             )
 
     instances = __salt__["boto_ec2.find_instances"](
@@ -1680,15 +1648,15 @@ def volume_present(
         filters.update({"tag:Name": volume_name})
         vols = __salt__["boto_ec2.get_all_volumes"](filters=filters, **args)
         if len(vols) > 1:
-            msg = "More than one volume matched volume name {0}, can't continue in state {1}".format(
+            msg = "More than one volume matched volume name {}, can't continue in state {}".format(
                 volume_name, name
             )
             raise SaltInvocationError(msg)
         if len(vols) < 1:
             if __opts__["test"]:
                 ret["comment"] = (
-                    "The volume with name {0} is set to be created and attached"
-                    " on {1}({2}).".format(volume_name, instance_id, device)
+                    "The volume with name {} is set to be created and attached"
+                    " on {}({}).".format(volume_name, instance_id, device)
                 )
                 ret["result"] = None
                 return ret
@@ -1707,7 +1675,7 @@ def volume_present(
                 volume_id = _rt["result"]
             else:
                 raise SaltInvocationError(
-                    "Error creating volume with name {0}.".format(volume_name)
+                    "Error creating volume with name {}.".format(volume_name)
                 )
             _rt = __salt__["boto_ec2.set_volumes_tags"](
                 tag_maps=[
@@ -1721,9 +1689,7 @@ def volume_present(
             if _rt["success"] is False:
                 raise SaltInvocationError(
                     "Error updating requested volume "
-                    "{0} with name {1}. {2}".format(
-                        volume_id, volume_name, _rt["comment"]
-                    )
+                    "{} with name {}. {}".format(volume_id, volume_name, _rt["comment"])
                 )
             old_dict["volume_id"] = None
             new_dict["volume_id"] = volume_id
@@ -1733,26 +1699,26 @@ def volume_present(
         volume_ids=[volume_id], return_objs=True, **args
     )
     if len(vols) < 1:
-        raise SaltInvocationError("Volume {0} do not exist".format(volume_id))
+        raise SaltInvocationError("Volume {} do not exist".format(volume_id))
     vol = vols[0]
     if vol.zone != instance.placement:
         raise SaltInvocationError(
-            ("Volume {0} in {1} cannot attach to instance" " {2} in {3}.").format(
+            ("Volume {} in {} cannot attach to instance" " {} in {}.").format(
                 volume_id, vol.zone, instance_id, instance.placement
             )
         )
     attach_data = vol.attach_data
     if attach_data is not None and attach_data.instance_id is not None:
         if instance_id == attach_data.instance_id and device == attach_data.device:
-            ret["comment"] = "The volume {0} is attached on {1}({2}).".format(
+            ret["comment"] = "The volume {} is attached on {}({}).".format(
                 volume_id, instance_id, device
             )
             return ret
         else:
             if __opts__["test"]:
                 ret["comment"] = (
-                    "The volume {0} is set to be detached"
-                    " from {1}({2} and attached on {3}({4})."
+                    "The volume {} is set to be detached"
+                    " from {}({} and attached on {}({})."
                 ).format(
                     attach_data.instance_id,
                     attach_data.devic,
@@ -1765,7 +1731,7 @@ def volume_present(
             if __salt__["boto_ec2.detach_volume"](
                 volume_id=volume_id, wait_for_detachement=True, **args
             ):
-                ret["comment"] = "Volume {0} is detached from {1}({2}).".format(
+                ret["comment"] = "Volume {} is detached from {}({}).".format(
                     volume_id, attach_data.instance_id, attach_data.device
                 )
                 old_dict["instance_id"] = attach_data.instance_id
@@ -1773,7 +1739,7 @@ def volume_present(
             else:
                 raise SaltInvocationError(
                     (
-                        "The volume {0} is already attached on instance {1}({2})."
+                        "The volume {} is already attached on instance {}({})."
                         " Failed to detach"
                     ).format(volume_id, attach_data.instance_id, attach_data.device)
                 )
@@ -1781,7 +1747,7 @@ def volume_present(
         old_dict["instance_id"] = instance_id
         old_dict["device"] = None
     if __opts__["test"]:
-        ret["comment"] = "The volume {0} is set to be attached on {1}({2}).".format(
+        ret["comment"] = "The volume {} is set to be attached on {}({}).".format(
             volume_id, instance_id, device
         )
         ret["result"] = None
@@ -1792,7 +1758,7 @@ def volume_present(
         ret["comment"] = " ".join(
             [
                 ret["comment"],
-                "Volume {0} is attached on {1}({2}).".format(
+                "Volume {} is attached on {}({}).".format(
                     volume_id, instance_id, device
                 ),
             ]
@@ -1801,13 +1767,14 @@ def volume_present(
         new_dict["device"] = device
         ret["changes"] = {"old": old_dict, "new": new_dict}
     else:
-        ret["comment"] = "Error attaching volume {0} to instance {1}({2}).".format(
+        ret["comment"] = "Error attaching volume {} to instance {}({}).".format(
             volume_id, instance_id, device
         )
         ret["result"] = False
     return ret
 
 
+@require_one_of("network_interface_name", "network_interface_id")
 def private_ips_present(
     name,
     network_interface_name=None,
@@ -1842,13 +1809,6 @@ def private_ips_present(
         (variable) - A dict with region, key and keyid, or a pillar key (string) that contains a
         dict with region, key and keyid.
     """
-
-    if not salt.utils.data.exactly_one((network_interface_name, network_interface_id)):
-        raise SaltInvocationError(
-            "Exactly one of 'network_interface_name', "
-            "'network_interface_id' must be provided"
-        )
-
     if not private_ip_addresses:
         raise SaltInvocationError(
             "You must provide the private_ip_addresses to associate with the " "ENI"
@@ -1912,16 +1872,16 @@ def private_ips_present(
             if ips_not_added:
                 ret["result"] = False
                 ret["comment"] = (
-                    "ips on eni: {0}\n"
-                    "attempted to add: {1}\n"
-                    "could not add the following ips: {2}\n".format(
+                    "ips on eni: {}\n"
+                    "attempted to add: {}\n"
+                    "could not add the following ips: {}\n".format(
                         "\n\t- " + "\n\t- ".join(ret["changes"]["new"]),
                         "\n\t- " + "\n\t- ".join(ips_to_add),
                         "\n\t- " + "\n\t- ".join(ips_not_added),
                     )
                 )
             else:
-                ret["comment"] = "added ips: {0}".format(
+                ret["comment"] = "added ips: {}".format(
                     "\n\t- " + "\n\t- ".join(ips_to_add)
                 )
 
@@ -1931,18 +1891,15 @@ def private_ips_present(
 
         else:
             # Testing mode, show that there were ips to add
-            ret["comment"] = (
-                "ips on eni: {0}\n"
-                "ips that would be added: {1}\n".format(
-                    "\n\t- " + "\n\t- ".join(ret["changes"]["old"]),
-                    "\n\t- " + "\n\t- ".join(ips_to_add),
-                )
+            ret["comment"] = "ips on eni: {}\n" "ips that would be added: {}\n".format(
+                "\n\t- " + "\n\t- ".join(ret["changes"]["old"]),
+                "\n\t- " + "\n\t- ".join(ips_to_add),
             )
             ret["changes"] = {}
             ret["result"] = None
 
     else:
-        ret["comment"] = "ips on eni: {0}".format(
+        ret["comment"] = "ips on eni: {}".format(
             "\n\t- " + "\n\t- ".join(ret["changes"]["old"])
         )
 
@@ -1952,6 +1909,7 @@ def private_ips_present(
     return ret
 
 
+@require_one_of("network_interface_name", "network_interface_id")
 def private_ips_absent(
     name,
     network_interface_name=None,
@@ -1982,13 +1940,6 @@ def private_ips_absent(
         (variable) - A dict with region, key and keyid, or a pillar key (string) that contains a
         dict with region, key and keyid.
     """
-
-    if not salt.utils.data.exactly_one((network_interface_name, network_interface_id)):
-        raise SaltInvocationError(
-            "Exactly one of 'network_interface_name', "
-            "'network_interface_id' must be provided"
-        )
-
     if not private_ip_addresses:
         raise SaltInvocationError(
             "You must provide the private_ip_addresses to unassociate with " "the ENI"
@@ -2029,10 +1980,10 @@ def private_ips_absent(
         if private_ip == primary_private_ip:
             ret["result"] = False
             ret["comment"] = (
-                "You cannot unassign the primary private ip address ({0}) on an "
+                "You cannot unassign the primary private ip address ({}) on an "
                 "eni\n"
-                "ips on eni: {1}\n"
-                "attempted to remove: {2}\n".format(
+                "ips on eni: {}\n"
+                "attempted to remove: {}\n".format(
                     primary_private_ip,
                     "\n\t- " + "\n\t- ".join(ret["changes"]["old"]),
                     "\n\t- " + "\n\t- ".join(private_ip_addresses),
@@ -2068,16 +2019,16 @@ def private_ips_absent(
             if ips_not_removed:
                 ret["result"] = False
                 ret["comment"] = (
-                    "ips on eni: {0}\n"
-                    "attempted to remove: {1}\n"
-                    "could not remove the following ips: {2}\n".format(
+                    "ips on eni: {}\n"
+                    "attempted to remove: {}\n"
+                    "could not remove the following ips: {}\n".format(
                         "\n\t- " + "\n\t- ".join(ret["changes"]["new"]),
                         "\n\t- " + "\n\t- ".join(ips_to_remove),
                         "\n\t- " + "\n\t- ".join(ips_not_removed),
                     )
                 )
             else:
-                ret["comment"] = "removed ips: {0}".format(
+                ret["comment"] = "removed ips: {}".format(
                     "\n\t- " + "\n\t- ".join(ips_to_remove)
                 )
 
@@ -2088,8 +2039,8 @@ def private_ips_absent(
         else:
             # Testing mode, show that there were ips to remove
             ret["comment"] = (
-                "ips on eni: {0}\n"
-                "ips that would be removed: {1}\n".format(
+                "ips on eni: {}\n"
+                "ips that would be removed: {}\n".format(
                     "\n\t- " + "\n\t- ".join(ret["changes"]["old"]),
                     "\n\t- " + "\n\t- ".join(ips_to_remove),
                 )
@@ -2098,7 +2049,7 @@ def private_ips_absent(
             ret["result"] = None
 
     else:
-        ret["comment"] = "ips on network interface: {0}".format(
+        ret["comment"] = "ips on network interface: {}".format(
             "\n\t- " + "\n\t- ".join(ret["changes"]["old"])
         )
 
