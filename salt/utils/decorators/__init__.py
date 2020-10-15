@@ -19,7 +19,7 @@ from functools import wraps
 import salt.utils.args
 import salt.utils.data
 import salt.utils.versions
-from salt.exceptions import CommandExecutionError, SaltConfigurationError
+from salt.exceptions import CommandExecutionError, SaltConfigurationError, SaltInvocationError
 
 # Import 3rd-party libs
 from salt.ext import six
@@ -751,6 +751,92 @@ class _WithDeprecated(_DeprecationDecorator):
 
 
 with_deprecated = _WithDeprecated
+
+
+def require_one_of(*kwarg_names):
+    """
+    Decorator to filter out exclusive arguments from the call.
+
+    kwarg_names:
+        Limit which combination of arguments may be passed to the call.
+
+    Example:
+
+
+        # Require one of the following arguments to be supplied to foo()
+        @require_one_of('arg1', 'arg2', 'arg3')
+        def foo(arg1, arg2, arg3):
+
+    """
+
+    def wrapper(f):
+        @wraps(f)
+        def func(*args, **kwargs):
+            found = False
+            for key in kwargs:
+                if kwargs[key] and key in kwarg_names:
+                    if found:
+                        raise SaltInvocationError(
+                            f"Only one of the following is allowed: {', '.join(kwarg_names)}"
+                        )
+                    found = True
+            for i, arg in enumerate(args):
+                if args[i] and f.__code__.co_varnames[i] in kwarg_names:
+                    if found:
+                        raise SaltInvocationError(
+                            f"Only one of the following is allowed: {', '.join(kwarg_names)}"
+                        )
+                    found = True
+            if not found:
+                raise SaltInvocationError(
+                    f"One of the following must be provided: {', '.join(kwarg_names)}"
+                )
+            return f(*args, **kwargs)
+
+        return func
+
+    return wrapper
+
+
+def allow_one_of(*kwarg_names):
+    """
+    Decorator to filter out exclusive arguments from the call.
+
+    kwarg_names:
+        Limit which combination of arguments may be passed to the call.
+
+    Example:
+
+
+        # Allow only one of the following arguments to be supplied to foo()
+        @allow_one_of('arg1', 'arg2', 'arg3')
+        def foo(arg1, arg2, arg3):
+
+    """
+
+    def wrapper(f):
+        @wraps(f)
+        def func(*args, **kwargs):
+            found = False
+            for key in kwargs:
+                if kwargs[key] and key in kwarg_names:
+                    if found:
+                        raise SaltInvocationError(
+                            f"Only one of the following is allowed: {', '.join(kwarg_names)}"
+                        )
+                    found = True
+            for i, arg in enumerate(args):
+                if args[i] and f.__code__.co_varnames[i] in kwarg_names:
+                    if found:
+                        raise SaltInvocationError(
+                            f"Only one of the following is allowed: {', '.join(kwarg_names)}"
+                        )
+                    found = True
+            return f(*args, **kwargs)
+
+        return func
+
+    return wrapper
 
 
 def ignores_kwargs(*kwarg_names):
