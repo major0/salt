@@ -245,7 +245,9 @@ def get_error(e):
     return r
 
 
-@salt.utils.decorators.is_deprecated(globals(), "Aluminium", with_successor="salt.utils.data.exactly_n")
+@salt.utils.decorators.is_deprecated(
+    globals(), "Aluminium", with_successor="salt.utils.data.exactly_n"
+)
 def exactly_n(l, n=1):
     """
     Tests that exactly N items in an iterable are "truthy" (neither None,
@@ -255,7 +257,9 @@ def exactly_n(l, n=1):
     return all(any(i) for j in range(n)) and not any(i)
 
 
-@salt.utils.decorators.is_deprecated(globals(), "Aluminium", with_successor="salt.utils.data.exactly_one")
+@salt.utils.decorators.is_deprecated(
+    globals(), "Aluminium", with_successor="salt.utils.data.exactly_one"
+)
 def exactly_one(l):
     return exactly_n(l)
 
